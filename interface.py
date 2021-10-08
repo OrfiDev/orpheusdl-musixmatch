@@ -2,13 +2,14 @@ import re
 from typing import Optional
 
 from modules.musixmatch.musixmatch_api import Musixmatch
-from utils.models import ModuleInformation, ModuleController, ModuleModes, TrackInfo, LyricsInfo, SearchResult
+from utils.models import ManualEnum, ModuleInformation, ModuleController, ModuleModes, TrackInfo, LyricsInfo, SearchResult
 
 
 module_information = ModuleInformation(
     service_name = 'Musixmatch',
     module_supported_modes = ModuleModes.lyrics,
-    temporary_settings = ['user_token']
+    global_storage_variables = ['user_token'],
+    login_behaviour = ManualEnum.manual
 )
 
 class ModuleInterface:
