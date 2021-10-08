@@ -2,13 +2,14 @@ import re
 from typing import Optional
 
 from modules.musixmatch.musixmatch_api import Musixmatch
-from utils.models import ModuleInformation, ModuleController, ModuleModes, Tags, LyricsInfo, SearchResult
+from utils.models import ManualEnum, ModuleInformation, ModuleController, ModuleModes, TrackInfo, LyricsInfo, SearchResult
 
 
 module_information = ModuleInformation(
     service_name = 'Musixmatch',
     module_supported_modes = ModuleModes.lyrics,
-    temporary_settings = ['user_token']
+    global_storage_variables = ['user_token'],
+    login_behaviour = ManualEnum.manual
 )
 
 class ModuleInterface:
@@ -21,15 +22,15 @@ class ModuleInterface:
         
         self.lyrics = {}
 
-    def search(self, querytype, query, tags: Tags = None):
+    def search(self, querytype, query, track_info: TrackInfo = None):
         track = None
-        if tags.isrc:
-            track = self.musixmatch.get_track_by_isrc(tags.isrc)
+        if track_info and track_info.tags.isrc:
+            track = self.musixmatch.get_track_by_isrc(track_info.tags.isrc)
             if track:
                 track_id = track['commontrack_id']
                 self.lyrics[track_id] = self.musixmatch.get_subtitle_by_id(track_id)
         if not track:
-            track = self.musixmatch.get_lyrics_by_metadata(tags.title, tags.album_artist)
+            track = self.musixmatch.get_lyrics_by_metadata(track_info.name, track_info.artists[0])
             if track:
                 track_id = track['subtitle_id']
                 self.lyrics[track_id] = track
