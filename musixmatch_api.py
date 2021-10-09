@@ -33,6 +33,7 @@ class Musixmatch:
             'app_id': 'android-player-v1.0',
             'build_number': '2021060301',
             'guid': '',
+            'lang': 'en_US',
             'model': 'manufacturer/Google+brand/Google+model/Pixel+3',
             'timestamp': timestamp,
             'format': 'json'
