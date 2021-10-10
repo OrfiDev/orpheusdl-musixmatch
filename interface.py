@@ -32,7 +32,6 @@ class ModuleInterface:
             if track:
                 track_id = track['subtitle_id']
                 lyrics = track
-        
         if track:
             return [SearchResult(result_id=track_id, extra_kwargs={'lyrics': lyrics})]
         return []

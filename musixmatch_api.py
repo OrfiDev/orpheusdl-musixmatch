@@ -2,13 +2,14 @@ import hmac, base64
 from urllib import parse
 from datetime import datetime
 from os import urandom
+from uuid import uuid4
 
 from utils.utils import create_requests_session
 
 
 class Musixmatch:
     def __init__(self, exception):
-        self.API_URL = 'https://apic.musixmatch.com/ws/1.1/'
+        self.API_URL = 'https://apic-desktop.musixmatch.com/ws/1.1/'
         self.s = create_requests_session()
         self.exception = exception
         self.headers = {
@@ -21,7 +22,7 @@ class Musixmatch:
     
     def sign_request(self, method, params, timestamp):
         to_hash = self.API_URL + method + '?' + parse.urlencode(params)
-        key = ("967Pn4)N3&" + "R_GBg5$b('").encode()
+        key = ("IEJ5E8XFaH" "QvIQNfs7IC").encode() # Thanks to https://github.com/aaronlpv/live-lyrics/blob/master/musixmatch.c for the desktop app hmac key
         signature = hmac.digest(key, (to_hash + timestamp).encode(), digest='SHA1')
         return base64.urlsafe_b64encode(signature).decode()
 
@@ -31,21 +32,17 @@ class Musixmatch:
         signature_timestamp = currenttime.strftime('%Y%m%d')
         method = 'token.get'
         params = {
-            'referral': 'utm_source=google-play&utm_medium=organic',
-            'root': '0',
-            'sideloaded': '0',
-            'app_id': 'android-player-v1.0',
-            'build_number': '2021060301',
-            'guid': urandom(8).hex(),
-            'lang': 'en_UK',
-            'model': 'manufacturer/Google+brand/google+model/Pixel+3',
+            'format': 'json',
+            'guid': str(uuid4()),
             'timestamp': timestamp,
-            'format': 'json'
+            'build_number': '2017091202',
+            'lang': 'en-GB',
+            'app_id': 'web-desktop-app-v1.0'
         }
         params['signature'] = self.sign_request(method, params, signature_timestamp)
         params['signature_protocol'] = 'sha1'
 
-        r = self.s.get(self.API_URL + method, params=params, headers=self.headers)
+        r = self.s.get(self.API_URL + method, params=params, headers=self.headers, cookies={'AWSELBCORS': '0', 'AWSELB': '0'})
         if r.status_code != 200: raise Exception(r.text)
         
         self.user_token = r.json()['message']['body']['user_token']
@@ -55,11 +52,11 @@ class Musixmatch:
     def _get(self, url: str, query: dict):
         params = {
             'usertoken': self.user_token,
-            'app_id': 'android-player-v1.0',
+            'app_id': 'web-desktop-app-v1.0',
         }
         params.update(query)
 
-        r = self.s.get(f'{self.API_URL}{url}', params=params, headers=self.headers)
+        r = self.s.get(f'{self.API_URL}{url}', params=params, headers=self.headers, cookies={'AWSELBCORS': '0', 'AWSELB': '0'})
         if r.status_code not in [200, 201, 202]:
             raise self.exception(r.text)
         r = r.json()
