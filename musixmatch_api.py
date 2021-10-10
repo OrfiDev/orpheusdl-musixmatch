@@ -14,9 +14,7 @@ class Musixmatch:
         self.exception = exception
         self.headers = {
             'Connection': 'Keep-Alive',
-            'Accept-Encoding': 'gzip',
-            'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 10; Pixel 3 Build/QP1A.190711.020))',
-            'x-mxm-endpoint': 'default'
+            'User-Agent': 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Musixmatch/0.19.4 Chrome/58.0.3029.110 Electron/1.7.6 Safari/537.36'
         }
         self.user_token = None
     
@@ -42,7 +40,7 @@ class Musixmatch:
         params['signature'] = self.sign_request(method, params, signature_timestamp)
         params['signature_protocol'] = 'sha1'
 
-        r = self.s.get(self.API_URL + method, params=params, headers=self.headers, cookies={'AWSELBCORS': '0', 'AWSELB': '0'})
+        r = self.s.get(self.API_URL + method, params=params, headers=self.headers, cookies={'AWSELB': 'unknown'})
         if r.status_code != 200: raise Exception(r.text)
         
         self.user_token = r.json()['message']['body']['user_token']
@@ -56,7 +54,7 @@ class Musixmatch:
         }
         params.update(query)
 
-        r = self.s.get(f'{self.API_URL}{url}', params=params, headers=self.headers, cookies={'AWSELBCORS': '0', 'AWSELB': '0'})
+        r = self.s.get(f'{self.API_URL}{url}', params=params, headers=self.headers, cookies={'AWSELB': 'unknown'})
         if r.status_code not in [200, 201, 202]:
             raise self.exception(r.text)
         r = r.json()
