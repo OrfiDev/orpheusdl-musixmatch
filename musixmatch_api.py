@@ -1,6 +1,7 @@
 import hmac, base64
 from urllib import parse
 from datetime import date
+from os import urandom
 
 from utils.utils import create_requests_session
 
@@ -13,7 +14,8 @@ class Musixmatch:
         self.headers = {
             'Connection': 'Keep-Alive',
             'Accept-Encoding': 'gzip',
-            'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 10; Pixel 3 Build/QP1A.190711.020))'
+            'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 10; Pixel 3 Build/QP1A.190711.020))',
+            'x-mxm-endpoint': 'default'
         }
         self.user_token = None
     
@@ -32,8 +34,8 @@ class Musixmatch:
             'sideloaded': '0',
             'app_id': 'android-player-v1.0',
             'build_number': '2021060301',
-            'guid': '',
-            'lang': 'en_US',
+            'guid': urandom(8).hex(),
+            'lang': 'en_UK',
             'model': 'manufacturer/Google+brand/Google+model/Pixel+3',
             'timestamp': timestamp,
             'format': 'json'
@@ -42,14 +44,11 @@ class Musixmatch:
         params['signature_protocol'] = 'sha1'
 
         r = self.s.get(self.API_URL + method, params=params, headers=self.headers)
-        if r.status_code != 200:
-            raise Exception(r.text)
-        r = r.json()['message']['body']
-        if r['user_token'] == 'UpgradeOnlyUpgradeOnlyUpgradeOnlyUpgradeOnly':
-            raise Exception('Musixmatch: getting token failed')
-
-        self.user_token = r['user_token']
-        return r['user_token']
+        if r.status_code != 200: raise Exception(r.text)
+        
+        self.user_token = r.json()['message']['body']['user_token']
+        if self.user_token == 'UpgradeOnlyUpgradeOnlyUpgradeOnlyUpgradeOnly': raise Exception('Musixmatch: getting token failed')
+        return self.user_token
 
     def _get(self, url: str, query: dict):
         params = {
