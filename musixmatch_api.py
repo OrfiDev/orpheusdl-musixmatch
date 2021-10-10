@@ -1,6 +1,6 @@
 import hmac, base64
 from urllib import parse
-from datetime import date
+from datetime import datetime
 from os import urandom
 
 from utils.utils import create_requests_session
@@ -26,7 +26,9 @@ class Musixmatch:
         return base64.urlsafe_b64encode(signature).decode()
 
     def get_user_token(self):
-        timestamp = date.today().strftime('%Y%m%d')
+        currenttime = datetime.now()
+        timestamp = currenttime.strftime('%Y-%m-%dT%H:%M:%SZ')
+        signature_timestamp = currenttime.strftime('%Y%m%d')
         method = 'token.get'
         params = {
             'referral': 'utm_source=google-play&utm_medium=organic',
@@ -36,11 +38,11 @@ class Musixmatch:
             'build_number': '2021060301',
             'guid': urandom(8).hex(),
             'lang': 'en_UK',
-            'model': 'manufacturer/Google+brand/Google+model/Pixel+3',
+            'model': 'manufacturer/Google+brand/google+model/Pixel+3',
             'timestamp': timestamp,
             'format': 'json'
         }
-        params['signature'] = self.sign_request(method, params, timestamp)
+        params['signature'] = self.sign_request(method, params, signature_timestamp)
         params['signature_protocol'] = 'sha1'
 
         r = self.s.get(self.API_URL + method, params=params, headers=self.headers)
