@@ -162,7 +162,9 @@ class ModuleInterface:
 
                 # fallback to manual search
                 if not track_id:
-                    track = self.musixmatch.get_lyrics_by_metadata(track_info.name, track_info.artists[0])
+                    # search for track with artist, album and title
+                    track = self.musixmatch.get_lyrics_by_metadata(
+                        track_info.name, track_info.artists[0], track_info.album)
                     success = True
 
                     if track['matcher.track.get']['message']['header']['status_code'] == 200:
@@ -175,10 +177,6 @@ class ModuleInterface:
                         lyrics = track['track.subtitles.get']['message']['body']['subtitle_list'][0]['subtitle']
                     elif track['track.lyrics.get']['message']['header']['status_code'] == 200:
                         lyrics = track['track.lyrics.get']['message']['body']['lyrics']
-
-                    # make sure the lyrics are not empty
-                    if lyrics == '':
-                        lyrics = None
 
                     break
 
@@ -205,7 +203,7 @@ class ModuleInterface:
                 embedded = '\n'.join([line['x'] for line in rich_sync_lyrics])
             elif lyrics.get('subtitle_body'):  # use normal LRC format
                 synced = lyrics['subtitle_body'].replace('] ', ']')
-                embedded = re.sub(re.compile('\[[0-9]+:[0-9]+.[0-9]+] '), lyrics['subtitle_body'], '')
+                embedded = re.sub(r'\[[0-9]+:[0-9]+.[0-9]+]', '', synced)
             elif lyrics.get('lyrics_body'):  # use unsynced lyrics
                 embedded = lyrics['lyrics_body']
 

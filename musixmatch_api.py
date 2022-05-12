@@ -102,13 +102,14 @@ class Musixmatch:
 
         return r['message']['body']
 
-    def get_search_by_track(self, track_name: str, artist_name: str):
+    def get_search_by_track(self, track_name: str, artist_name: str, album_name: str):
         # needed for richsync?
-        return self._get('track.search', {
+        r = self._get('matcher.track.get', {
             'q_track': track_name,
             'q_artist': artist_name,
-            'f_has_lyrics': 1
-        })['track_list']
+            'q_album': album_name,
+        })
+        return r['track'] if r else None
 
     def get_track_by_isrc(self, isrc: str):
         r = self._get('track.get', {'track_isrc': isrc})
@@ -127,10 +128,11 @@ class Musixmatch:
         r = self._get('track.richsync.get', {'track_id': track_id})
         return r['richsync'] if r else None
 
-    def get_lyrics_by_metadata(self, track_name: str, artist_name: str):
+    def get_lyrics_by_metadata(self, track_name: str, artist_name: str, album_name: str):
         return self._get('macro.subtitles.get', {
             'q_artist': artist_name,
             'q_track': track_name,
+            'q_album': album_name,
             'format': 'json',
             'namespace': 'lyrics_richsynched',
             'optional_calls': 'track.richsync'
