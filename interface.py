@@ -173,7 +173,9 @@ class ModuleInterface:
                     if self.use_enhanced_lyrics is True and \
                             track['track.richsync.get']['message']['header']['status_code'] == 200:
                         lyrics = track['track.richsync.get']['message']['body']['richsync']
-                    elif track['track.subtitles.get']['message']['header']['status_code'] == 200:
+                    elif (track['track.subtitles.get']['message']['header']['status_code'] == 200 and
+                          track['track.subtitles.get']['message']['body']):
+                        # track.subtitles.get can return an empty body even with a status_code of 200?!
                         lyrics = track['track.subtitles.get']['message']['body']['subtitle_list'][0]['subtitle']
                     elif track['track.lyrics.get']['message']['header']['status_code'] == 200:
                         lyrics = track['track.lyrics.get']['message']['body']['lyrics']
