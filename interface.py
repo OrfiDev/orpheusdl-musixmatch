@@ -170,8 +170,8 @@ class ModuleInterface:
                     if track['matcher.track.get']['message']['header']['status_code'] == 200:
                         track_id = track['matcher.track.get']['message']['body']['track']['track_id']
 
-                    if self.use_enhanced_lyrics is True and \
-                            track['track.richsync.get']['message']['header']['status_code'] == 200:
+                    if ((self.use_enhanced_lyrics is True and track.get('track.richsync.get')) and
+                            track['track.richsync.get']['message']['header']['status_code'] == 200):
                         lyrics = track['track.richsync.get']['message']['body']['richsync']
                     elif (track['track.subtitles.get']['message']['header']['status_code'] == 200 and
                           track['track.subtitles.get']['message']['body']):
