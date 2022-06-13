@@ -151,9 +151,9 @@ class ModuleInterface:
                         track_id = track.get('track_id')
                         if self.use_enhanced_lyrics is True and track.get('has_richsync') == 1:
                             lyrics = self.musixmatch.get_rich_sync_by_id(track.get('track_id'))
-                        elif track.get('has_subtitles') == 1:
+                        if not lyrics and track.get('has_subtitles') == 1:
                             lyrics = self.musixmatch.get_subtitle_by_id(track.get('commontrack_id'))
-                        elif track.get('has_lyrics') == 1:
+                        if not lyrics and track.get('has_lyrics') == 1:
                             lyrics = self.musixmatch.get_lyrics_by_id(track.get('track_id'))
 
                         # if lyrics are found, break the loop
