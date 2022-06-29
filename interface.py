@@ -180,7 +180,8 @@ class ModuleInterface:
                     elif track['track.lyrics.get']['message']['header']['status_code'] == 200:
                         lyrics = track['track.lyrics.get']['message']['body']['lyrics']
 
-                    break
+                # break if no captcha error occurred
+                break
 
             except CaptchaError:
                 # try the next user token in the list
