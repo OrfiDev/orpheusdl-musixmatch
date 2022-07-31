@@ -143,9 +143,12 @@ class ModuleInterface:
         # retry the search if the user token is invalid
         for _ in range(len(self.user_tokens)):
             try:
-                # check if track_info is given and has an ISRC tag
-                if track_info and track_info.tags.isrc:
-                    track = self.musixmatch.get_track_by_isrc(track_info.tags.isrc)
+                # check if track_info is given
+                if track_info:
+                    # use the "new" matcher.track.get to search for the track
+                    track = self.musixmatch.get_search_by_track(track_info.name, track_info.artists[0],
+                                                                track_info.album)
+
                     success = True
                     if track:
                         track_id = track.get('track_id')
@@ -155,30 +158,6 @@ class ModuleInterface:
                             lyrics = self.musixmatch.get_subtitle_by_id(track.get('commontrack_id'))
                         if not lyrics and track.get('has_lyrics') == 1:
                             lyrics = self.musixmatch.get_lyrics_by_id(track.get('track_id'))
-
-                        # if lyrics are found, break the loop
-                        if lyrics:
-                            break
-
-                # fallback to manual search
-                if not track_id:
-                    # search for track with artist, album and title
-                    track = self.musixmatch.get_lyrics_by_metadata(
-                        track_info.name, track_info.artists[0], track_info.album)
-                    success = True
-
-                    if track['matcher.track.get']['message']['header']['status_code'] == 200:
-                        track_id = track['matcher.track.get']['message']['body']['track']['track_id']
-
-                    if ((self.use_enhanced_lyrics is True and track.get('track.richsync.get')) and
-                            track['track.richsync.get']['message']['header']['status_code'] == 200):
-                        lyrics = track['track.richsync.get']['message']['body']['richsync']
-                    elif (track['track.subtitles.get']['message']['header']['status_code'] == 200 and
-                          track['track.subtitles.get']['message']['body']):
-                        # track.subtitles.get can return an empty body even with a status_code of 200?!
-                        lyrics = track['track.subtitles.get']['message']['body']['subtitle_list'][0]['subtitle']
-                    elif track['track.lyrics.get']['message']['header']['status_code'] == 200:
-                        lyrics = track['track.lyrics.get']['message']['body']['lyrics']
 
                 # break if no captcha error occurred
                 break
@@ -206,7 +185,7 @@ class ModuleInterface:
                 embedded = '\n'.join([line['x'] for line in rich_sync_lyrics])
             elif lyrics.get('subtitle_body'):  # use normal LRC format
                 synced = lyrics['subtitle_body'].replace('] ', ']')
-                embedded = re.sub(r'\[[0-9]+:[0-9]+.[0-9]+]', '', synced)
+                embedded = re.sub(r'\[\d+:\d+.\d+]', '', synced)
             elif lyrics.get('lyrics_body'):  # use unsynced lyrics
                 embedded = lyrics['lyrics_body']
 
