@@ -3,7 +3,7 @@ import logging
 import re
 from typing import Optional
 
-from modules.musixmatch.musixmatch_api import Musixmatch, CaptchaError, UserTokenError
+from modules.musixmatch.musixmatch_api import Musixmatch, CaptchaError
 from utils.models import ManualEnum, ModuleInformation, ModuleController, ModuleModes, TrackInfo, LyricsInfo, \
     SearchResult, DownloadTypeEnum
 
@@ -12,8 +12,8 @@ module_information = ModuleInformation(
     module_supported_modes=ModuleModes.lyrics,
     global_settings={
         'token_limit': 10,
-        'enable_enhanced_lyrics': False,
-        'force_lyrics_x_formatting': False
+        'lyrics_format': 'standard',
+        'custom_time_decimals': False
     },
     global_storage_variables=['user_tokens'],
     login_behaviour=ManualEnum.manual
@@ -27,82 +27,18 @@ def format_timestamp(seconds: float, decimal_places: int = 2) -> str:
            f'{int(seconds * milliseconds % milliseconds):0{decimal_places}d}'
 
 
-def parse_rich_sync_lyrics(rich_sync_lyrics: dict, use_lyrics_x: bool = False) -> str:
-    """
-    Parse the rich sync data and return the lyrics as a formatted string ready to be saved
-    :param rich_sync_lyrics: the rich sync lyrics dict in JSON format from the musixmatch API
-    :param use_lyrics_x: whether to format the lyrics according to LyricsX format (beta) or use enhanced LRC format
-    :return: the lyrics as a formatted string ready to be saved
-    """
-    rich_sync_lrc = []
-
-    if use_lyrics_x:
-        # iterate over every line
-        for line in rich_sync_lyrics:
-            # "ts" is the absolute line time start, "te" is the abs line time end and add it as the first element
-            time_start = line['ts']
-            rich_sync_line = f'[{format_timestamp(time_start, 3)}]'
-
-            # add the complete line lyrics "x"
-            rich_sync_line += f'{line["x"]}\n[{format_timestamp(time_start, 3)}][tt]<0,0>'
-
-            # looks like LyricsX needs the start time of a word corresponding to the number of (word) characters
-            char_count = len(line['l'][0]['c'])
-            for i in range(1, len(line['l'])):
-                word = line['l'][i]
-                if word['c'] == ' ':  # if the word is a space
-                    continue  # skip it
-
-                # append the last word start timestamp and the number of characters
-                # needs to be converted to milliseconds according to
-                # https://github.com/ddddxxx/LyricsKit/blob/master/Sources/LyricsCore/LyricsLineAttachment.swift
-                word_ts = round(word["o"], 3)
-                # count the characters + 1 for whitespace of the current word and add it to char_count
-                rich_sync_line += f'<{int(word_ts * 1000.0)},{char_count}>'
-                # count the characters
-                char_count += len(word["c"]) + 1
-
-            # finally, add the last word end timestamp
-            time_end = line['te']
-            # use the line time end as an offset and subtract a margin of 0.005 seconds
-            rich_sync_line += f'<{int(float((time_end - time_start) - 0.005) * 1000.0)},{char_count}>'
-            # add the line time end offset as the last element
-            rich_sync_line += f'<{int(float(time_end - time_start) * 1000.0)}>'
-            # add the line to the rich sync lrc
-            rich_sync_lrc.append(rich_sync_line)
-
-    else:  # enhanced LRC format
-        # add the first 00:00.00 timestamp
-        rich_sync_line = f'[{format_timestamp(0.0)}]'
-        # iterate over every line
-        for line in rich_sync_lyrics:
-            # "ts" is the absolute line time start and add it as the first element
-            time_start = line['ts']
-
-            # for every word in the given line "l"
-            for word in line['l']:
-                if word['c'] == ' ':  # if the word is a space
-                    continue  # skip it
-
-                # "o" is the word offset in seconds from "ts"
-                word_ts = round(float(time_start) + float(word["o"]), 2)
-                # "c" is the word text, and format according to
-                # https://en.wikipedia.org/wiki/LRC_(file_format)#Enhanced_format
-                rich_sync_line += f' <{format_timestamp(word_ts)}> {word["c"]}'
-
-            rich_sync_lrc.append(rich_sync_line)
-            rich_sync_line = f'[{format_timestamp(line["te"])}]'
-
-    # return the formatted lyrics as a string
-    return '\n'.join(rich_sync_lrc)
+def get_decimal_places(input) -> int:
+    split_input = str(input).split('.')
+    if len(split_input) > 1:
+        return len(split_input[-1])
+    return 0
 
 
 class ModuleInterface:
     def __init__(self, module_controller: ModuleController):
         self.musixmatch = Musixmatch(module_controller.module_error)
         self.exception = module_controller.module_error
-        self.use_enhanced_lyrics = module_controller.module_settings['enable_enhanced_lyrics']
-        self.force_lyrics_x_formatting = module_controller.module_settings['force_lyrics_x_formatting']
+        self.settings = module_controller.module_settings
         token_limit = module_controller.module_settings['token_limit']
 
         user_tokens = module_controller.temporary_settings_controller.read('user_tokens', 'global')
@@ -137,9 +73,112 @@ class ModuleInterface:
         logging.debug(f'{module_information.service_name}: Switched to user_token {self.user_token_index}: '
                       f'{self.musixmatch.user_token}')
 
+    def parse_rich_sync_lyrics(self, rich_sync_lyrics: dict, output_type: str, custom_time_decimals: bool) -> str:
+        """
+        Parse the rich sync data and return the lyrics as a formatted string ready to be saved
+        :param rich_sync_lyrics: the rich sync lyrics dict in JSON format from the musixmatch API
+        :param use_lyrics_x: whether to format the lyrics according to LyricsX format (beta) or use enhanced LRC format
+        :return: the lyrics as a formatted string ready to be saved
+        """
+        rich_sync_lrc = []
+
+        if output_type == 'lyricsx':
+            # iterate over every line
+            for line in rich_sync_lyrics:
+                # "ts" is the absolute line time start, "te" is the abs line time end and add it as the first element
+                time_start = line['ts']
+                rich_sync_line = f'[{format_timestamp(time_start, 3)}]'
+
+                # add the complete line lyrics "x"
+                rich_sync_line += f'{line["x"]}\n[{format_timestamp(time_start, 3)}][tt]<0,0>'
+
+                # looks like LyricsX needs the start time of a word corresponding to the number of (word) characters
+                char_count = len(line['l'][0]['c'])
+                for i in range(1, len(line['l'])):
+                    word = line['l'][i]
+                    if word['c'] == ' ':  # if the word is a space
+                        continue  # skip it
+
+                    # append the last word start timestamp and the number of characters
+                    # needs to be converted to milliseconds according to
+                    # https://github.com/ddddxxx/LyricsKit/blob/master/Sources/LyricsCore/LyricsLineAttachment.swift
+                    word_ts = round(word["o"], 3)
+                    # count the characters + 1 for whitespace of the current word and add it to char_count
+                    rich_sync_line += f'<{int(word_ts * 1000.0)},{char_count}>'
+                    # count the characters
+                    char_count += len(word["c"]) + 1
+
+                # finally, add the last word end timestamp
+                time_end = line['te']
+                # use the line time end as an offset and subtract a margin of 0.005 seconds
+                rich_sync_line += f'<{int(float((time_end - time_start) - 0.005) * 1000.0)},{char_count}>'
+                # add the line time end offset as the last element
+                rich_sync_line += f'<{int(float(time_end - time_start) * 1000.0)}>'
+                # add the line to the rich sync lrc
+                rich_sync_lrc.append(rich_sync_line)
+        elif output_type == 'enhanced':  # enhanced LRC format
+            # add the first 00:00.00 timestamp
+            rich_sync_line = f'[{format_timestamp(0.0)}]'
+            # iterate over every line
+            for line in rich_sync_lyrics:
+                # "ts" is the absolute line time start and add it as the first element
+                time_start = line['ts']
+
+                # for every word in the given line "l"
+                for word in line['l']:
+                    if word['c'] == ' ':  # if the word is a space
+                        continue  # skip it
+
+                    # "o" is the word offset in seconds from "ts"
+                    word_ts = round(float(time_start) + float(word["o"]), 2)
+                    # "c" is the word text, and format according to
+                    # https://en.wikipedia.org/wiki/LRC_(file_format)#Enhanced_format
+                    rich_sync_line += f' <{format_timestamp(word_ts)}> {word["c"]}'
+
+                rich_sync_lrc.append(rich_sync_line)
+                rich_sync_line = f'[{format_timestamp(line["te"])}]'
+        elif output_type == 'custom': # special custom format that players like KaraFun can accept
+            # gets the highest number of decimal places in the rich sync
+            # breaks compatibility with stuff including KaraFun
+            # however keeps all the data given by Musixmatch
+            if custom_time_decimals:
+                max_decimal_places = 0
+                for line in rich_sync_lyrics:
+                    if get_decimal_places(line['ts']) > max_decimal_places:
+                        max_decimal_places = get_decimal_places(line['ts'])
+
+                    if get_decimal_places(line['te']) > max_decimal_places:
+                        max_decimal_places = get_decimal_places(line['te'])
+
+                    for word in line['l']:
+                        if get_decimal_places(word['o']) > max_decimal_places:
+                            max_decimal_places = get_decimal_places(word['o'])
+            else:
+                max_decimal_places = 2
+
+            # format the lyrics
+            for line in rich_sync_lyrics:
+                rich_sync_line = ''
+                # for every word in the given line "l"
+                for word in line['l']:
+                    # "o" is the word offset in seconds from "ts"
+                    word_ts = format_timestamp(round(
+                        float(line['ts']) + float(word["o"]), max_decimal_places), max_decimal_places)
+                    rich_sync_line += f'<{word_ts}>' if rich_sync_line else f'[{word_ts}]'
+                    rich_sync_line += word['c']
+
+                rich_sync_line += f'<{format_timestamp(round(float(line["te"]), max_decimal_places), max_decimal_places)}>'
+
+                rich_sync_lrc.append(rich_sync_line)
+        else:
+            raise self.exception(f'Output type "{output_type}" not supported, choose between standard, enhanced, lyricsx and custom.')
+
+        # return the formatted lyrics as a string
+        return '\n'.join(rich_sync_lrc)
+
     def search(self, query_type: DownloadTypeEnum, query: str, track_info: TrackInfo = None):
         track_id, lyrics, success = None, None, False
-
+        
         # retry the search if the user token is invalid
         for _ in range(len(self.user_tokens)):
             try:
@@ -148,8 +187,9 @@ class ModuleInterface:
                     track = self.musixmatch.get_track_by_isrc(track_info.tags.isrc)
                     success = True
                     if track:
+                        lyrics = None
                         track_id = track.get('track_id')
-                        if self.use_enhanced_lyrics is True and track.get('has_richsync') == 1:
+                        if self.settings['lyrics_format'] != 'standard' and track.get('has_richsync') == 1:
                             lyrics = self.musixmatch.get_rich_sync_by_id(track.get('track_id'))
                         if not lyrics and track.get('has_subtitles') == 1:
                             lyrics = self.musixmatch.get_subtitle_by_id(track.get('commontrack_id'))
@@ -170,7 +210,7 @@ class ModuleInterface:
                     if track['matcher.track.get']['message']['header']['status_code'] == 200:
                         track_id = track['matcher.track.get']['message']['body']['track']['track_id']
 
-                    if ((self.use_enhanced_lyrics is True and track.get('track.richsync.get')) and
+                    if ((self.settings['lyrics_format'] != 'standard' and track.get('track.richsync.get')) and
                             track['track.richsync.get']['message']['header']['status_code'] == 200):
                         lyrics = track['track.richsync.get']['message']['body']['richsync']
                     elif (track['track.subtitles.get']['message']['header']['status_code'] == 200 and
@@ -197,11 +237,13 @@ class ModuleInterface:
 
     def get_track_lyrics(self, lyrics_id: str, lyrics=None) -> Optional[LyricsInfo]:
         synced, embedded = None, None
+        # TODO: fix rich synced lyrics converted down to simpler formats
+        # missing newlines that denote new verses
         if lyrics:
             # rich sync lyrics are present so use them
             if lyrics.get('richsync_body'):
                 rich_sync_lyrics = json.loads(lyrics.get('richsync_body'))
-                synced = parse_rich_sync_lyrics(rich_sync_lyrics, self.force_lyrics_x_formatting)
+                synced = self.parse_rich_sync_lyrics(rich_sync_lyrics, self.settings['lyrics_format'], self.settings['custom_time_decimals'])
                 embedded = '\n'.join([line['x'] for line in rich_sync_lyrics])
             elif lyrics.get('subtitle_body'):  # use normal LRC format
                 synced = lyrics['subtitle_body'].replace('] ', ']')
